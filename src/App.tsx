@@ -1,6 +1,6 @@
 import { UserData, UserSession } from '@stacks/auth';
 import { AuthOptions, Connect } from '@stacks/connect-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import SignIn from './components/SignIn';
 import { appConfig } from './utils/constants';
 import { fetchKeyPair, saveKeyPair } from './utils/data-store';
@@ -15,6 +15,7 @@ function App() {
   const [pup, setPup] = useState<string>()
   const [priv, setPriv] = useState<string>()
   const [posts, setPosts] = useState<string[]>([])
+  const [message, setMessage] = useState<string>("")
 
   const bdbOrm = new Orm(
       "https://test.ipdb.io/api/v1/"
@@ -29,6 +30,7 @@ function App() {
     onFinish: () => {
       setUserData(userSession.loadUserData());
       setIsLoggedIn(true)
+      setInitData()
     },
     appDetails: {
       name: "Stacks",
@@ -85,12 +87,14 @@ function App() {
     })()
   }, [setInitData])
 
-  const sendPost = () => {
+  const sendPost = (e: FormEvent) => {
+    e.preventDefault()
     if (pup && priv) {
       bdbOrm.models.post.create({
         keypair: {publicKey: pup, privateKey: priv},
-        data: {message: "hello dfghgdfhdfghdfgh"}
+        data: {message: message}
       }).then((asset: any) => console.log(asset))
+      setMessage('')
     }
   }
 
@@ -106,9 +110,12 @@ function App() {
           {isLoggedIn !== undefined && (
             <div>
               {isLoggedIn ? <button onClick={handleLogOut}>LogOut</button> : <SignIn />}
-              <button onClick={sendPost}>Post</button>
+              <form onSubmit={sendPost}>
+                <input value={message} onChange={e => setMessage(e.target.value)} />
+              <button type="submit">Post</button>
+              </form>
               <ul>
-          {posts && posts.map((p) => <li>{p}</li>)}
+          {posts && posts.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
             </div>
           )            
