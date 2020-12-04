@@ -1,6 +1,6 @@
 import { UserData, UserSession } from '@stacks/auth';
 import { AuthOptions, Connect } from '@stacks/connect-react';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import SignIn from './components/SignIn';
 import { appConfig } from './utils/constants';
 import { fetchKeyPair, saveKeyPair } from './utils/data-store';
@@ -11,9 +11,10 @@ const userSession = new UserSession({appConfig})
 
 function App() {
   const [userData, setUserData] = useState<UserData>()
-  const [isOpen, setIsOpen] = useState<boolean>(false)
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | undefined>(undefined)
   const [pup, setPup] = useState<string>()
   const [priv, setPriv] = useState<string>()
+  const [posts, setPosts] = useState<string[]>([])
 
   const bdbOrm = new Orm(
       "https://test.ipdb.io/api/v1/"
@@ -27,6 +28,7 @@ function App() {
     userSession: userSession,
     onFinish: () => {
       setUserData(userSession.loadUserData());
+      setIsLoggedIn(true)
     },
     appDetails: {
       name: "Stacks",
@@ -34,49 +36,83 @@ function App() {
     }
   } as unknown as AuthOptions
 
-  useEffect(() => {   
+  const setInitData = useCallback(async () => {
     const localPup = localStorage.getItem('pup')
     const localPriv = localStorage.getItem('priv')
     if (localPup && localPriv) {
       setPup(localPup)
       setPriv(localPriv)
-      bdbOrm.models.post.create({
-        keypair: {publicKey: localPup, privateKey: localPriv},
-        data: { key: {message: "dfsgfsdgsdfgsfdg"}}
-      })
-      bdbOrm.models.post.retrieve().then((p: any) => console.log(p))
     }  else {
-      const newP = new bdbOrm.driver.Ed25519Keypair()
-      const pup = newP.publicKey
-      const priv = newP.privateKey
-      localStorage.setItem('pup', pup)
-      localStorage.setItem('priv', priv)
+      const json =  await fetchKeyPair(userSession)
+      //@ts-ignore
+      if (json && json.keyPair) {
+        //@ts-ignore
+        const savedPup =  json.keyPair.publicKey
+        //@ts-ignore
+        const savedPriv = json.keyPair.privateKey
+        setPup(savedPup)
+        setPriv(savedPriv)
+      } else {
+        const newP = new bdbOrm.driver.Ed25519Keypair()
+        saveKeyPair(userSession, newP, false)
+      }
     }
-    ;(async () => { 
+  }, [bdbOrm.driver.Ed25519Keypair])
+
+  useEffect(() => {
+    if (pup && priv) {      
+      bdbOrm.models.post.retrieve().then((assets: any) => {
+        console.log(assets)
+        setPosts(assets.map((e: { data: { message: any; }; }) => e.data.message))
+      })
+    }
+  }, [pup, priv])
+
+  useEffect(() => {   
+    ;(async () => {
         if (userSession.isSignInPending()) {
           const userData = await userSession.handlePendingSignIn()
           setUserData(userData)
+          setIsLoggedIn(true)
+          setInitData()
         } else if (userSession.isUserSignedIn()) {          
-          setUserData(userSession.loadUserData())                    
+          setUserData(userSession.loadUserData())     
+          setIsLoggedIn(true)            
+          setInitData()   
+        }else {
+          setIsLoggedIn(false)
         }
     })()
-  }, [bdbOrm.driver.Ed25519Keypair])
+  }, [setInitData])
+
+  const sendPost = () => {
+    if (pup && priv) {
+      bdbOrm.models.post.create({
+        keypair: {publicKey: pup, privateKey: priv},
+        data: {message: "hello dfghgdfhdfghdfgh"}
+      }).then((asset: any) => console.log(asset))
+    }
+  }
 
   const handleLogOut = () => {
     setUserData(undefined)
+    setIsLoggedIn(false)
     userSession.signUserOut("/")
     localStorage.clear()
   }
 
-  const toggle = () => {
-    setIsOpen(!isOpen)
-  }
-
   return (
     <Connect authOptions={authConfigs}>
-        <div>
-          <SignIn />
-        </div>
+          {isLoggedIn !== undefined && (
+            <div>
+              {isLoggedIn ? <button onClick={handleLogOut}>LogOut</button> : <SignIn />}
+              <button onClick={sendPost}>Post</button>
+              <ul>
+          {posts && posts.map((p) => <li>{p}</li>)}
+              </ul>
+            </div>
+          )            
+          }
     </Connect>
   );
 }
