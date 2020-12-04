@@ -4,13 +4,24 @@ import React, { useEffect, useState } from 'react';
 import SignIn from './components/SignIn';
 import { appConfig } from './utils/constants';
 import { fetchKeyPair, saveKeyPair } from './utils/data-store';
+//@ts-ignore
+import Orm from 'bigchaindb-orm'
 
 const userSession = new UserSession({appConfig})
 
 function App() {
   const [userData, setUserData] = useState<UserData>()
   const [isOpen, setIsOpen] = useState<boolean>(false)
+  const [pup, setPup] = useState<string>()
+  const [priv, setPriv] = useState<string>()
 
+  const bdbOrm = new Orm(
+      "https://test.ipdb.io/api/v1/"
+  )
+
+  bdbOrm.define("post")
+  bdbOrm.define("comment")
+  
   const authConfigs = {
     redirectTo: "/",
     userSession: userSession,
@@ -23,22 +34,33 @@ function App() {
     }
   } as unknown as AuthOptions
 
-  useEffect(() => {    
+  useEffect(() => {   
+    const localPup = localStorage.getItem('pup')
+    const localPriv = localStorage.getItem('priv')
+    if (localPup && localPriv) {
+      setPup(localPup)
+      setPriv(localPriv)
+      bdbOrm.models.post.create({
+        keypair: {publicKey: localPup, privateKey: localPriv},
+        data: { key: {message: "dfsgfsdgsdfgsfdg"}}
+      })
+      bdbOrm.models.post.retrieve().then((p: any) => console.log(p))
+    }  else {
+      const newP = new bdbOrm.driver.Ed25519Keypair()
+      const pup = newP.publicKey
+      const priv = newP.privateKey
+      localStorage.setItem('pup', pup)
+      localStorage.setItem('priv', priv)
+    }
     ;(async () => { 
         if (userSession.isSignInPending()) {
           const userData = await userSession.handlePendingSignIn()
           setUserData(userData)
-        } else if (userSession.isUserSignedIn()) {
-          console.log("here");
-          
-          setUserData(userSession.loadUserData())
-          console.log(await saveKeyPair(userSession, "test-info", false));
-          
-          console.log(await fetchKeyPair(userSession));
-          
+        } else if (userSession.isUserSignedIn()) {          
+          setUserData(userSession.loadUserData())                    
         }
     })()
-  }, [])
+  }, [bdbOrm.driver.Ed25519Keypair])
 
   const handleLogOut = () => {
     setUserData(undefined)
