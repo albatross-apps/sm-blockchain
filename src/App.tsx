@@ -1,11 +1,9 @@
 import { UserData, UserSession } from '@stacks/auth';
 import { AuthOptions, Connect } from '@stacks/connect-react';
 import React, { useEffect, useState } from 'react';
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import SignIn from './components/SignIn';
 import { appConfig } from './utils/constants';
-import { BrowserRouter, Route, Switch } from "react-router-dom"
-import Property from './pages/Property';
+import { fetchKeyPair, saveKeyPair } from './utils/data-store';
 
 const userSession = new UserSession({appConfig})
 
@@ -25,13 +23,19 @@ function App() {
     }
   } as unknown as AuthOptions
 
-  useEffect(() => {
+  useEffect(() => {    
     ;(async () => { 
         if (userSession.isSignInPending()) {
           const userData = await userSession.handlePendingSignIn()
           setUserData(userData)
         } else if (userSession.isUserSignedIn()) {
+          console.log("here");
+          
           setUserData(userSession.loadUserData())
+          console.log(await saveKeyPair(userSession, "test-info", false));
+          
+          console.log(await fetchKeyPair(userSession));
+          
         }
     })()
   }, [])
@@ -48,17 +52,9 @@ function App() {
 
   return (
     <Connect authOptions={authConfigs}>
-      <BrowserRouter>
-        <Header logOut={handleLogOut} toggle={toggle} isOpen={isOpen} />  
-        <div style={{display: "flex"}}>
-          <Sidebar isOpen={isOpen} />
-          <div className={`${isOpen ? "card-open" : ""}`} style={{width: "100%"}}>
-          <Switch>
-            <Route path="/property" component={Property} />
-          </Switch>
-          </div>
+        <div>
+          <SignIn />
         </div>
-      </BrowserRouter>
     </Connect>
   );
 }
